@@ -1,4 +1,4 @@
-udio files in this folder are the model outputs produced by the Codecformer model reported in Table 1 of the paper.
+Audio files in this folder are the model outputs produced by the Codecformer model reported in Table 1 of the paper.
 
 These are the first 5 samples from the WSJ0-2mix-extr test dataset. 
 
