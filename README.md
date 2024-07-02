@@ -1,6 +1,6 @@
 # codecformer
 
-This repository contains a number of scripts required for replicating Codecformer within the speechbrain framework. Unfortunately, they will have to be manually copied into the respective directories manually.
+This repository contains a number of scripts required for replicating Codecformer within the speechbrain framework. Unfortunately, they will have to be copied into the respective directories manually.
 
 train_cdf.py -> recipes/WSJ02Mix/Separation
 
