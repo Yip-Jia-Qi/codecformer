@@ -1,0 +1,167 @@
+# ################################
+# Model: Codecformer for source separation
+# https://arxiv.org/abs/2406.12434
+# Dataset : WSJ0-2mix and WSJ0-3mix
+# ################################
+#
+# Basic parameters
+# Seed needs to be set at top of yaml, before objects with parameters are made
+#
+seed: 1234
+__set_seed: !apply:torch.manual_seed [1234]
+
+# Data params
+
+# e.g. '/yourpath/wsj0-mix/2speakers'
+# end with 2speakers for wsj0-2mix or 3speakers for wsj0-3mix
+data_folder: 
+
+# the path for wsj0/si_tr_s/ folder -- only needed if dynamic mixing is used
+# e.g. /yourpath/wsj0-processed/si_tr_s/
+# you need to convert the original wsj0 to 8k
+# you can do this conversion with the script ../meta/preprocess_dynamic_mixing.py
+base_folder_dm: /yourpath/wsj0-processed/si_tr_s/
+
+experiment_name: codecformer/DAC_original_L4nq
+output_folder: !ref results/<experiment_name>/<seed>
+train_log: !ref <output_folder>/train_log.txt
+save_folder: !ref <output_folder>/save
+train_data: !ref <save_folder>/wsj_tr.csv
+valid_data: !ref <save_folder>/wsj_cv.csv
+test_data: !ref <save_folder>/wsj_tt.csv
+skip_prep: false
+
+
+# Experiment params
+auto_mix_prec: false # Set it to True for mixed precision
+test_only: false
+num_spks: 2 # set to 3 for wsj0-3mix
+noprogressbar: false
+save_audio: true # Save estimated sources on disk
+n_audio_to_save: 5
+sample_rate: 8000
+quantize_before: false
+quantize_after: false
+
+# Training parameters
+N_epochs: 20
+batch_size: 1 #3
+lr: 0.00015 #0.003
+clip_grad_norm: 5
+loss_upper_lim: 999999  # this is the upper limit for an acceptable loss
+# if True, the training sequences are cut to a specified length
+limit_training_signal_len: false
+# this is the length of sequences if we choose to limit
+# the signal length of training sequences
+training_signal_len: 40000
+
+# Set it to True to dynamically create mixtures at training time
+dynamic_mixing: false
+
+# Parameters for data augmentation
+use_wavedrop: false
+use_speedperturb: true
+use_rand_shift: false
+min_shift: -8000
+max_shift: 8000
+
+# Speed perturbation
+speed_changes: [95, 100, 105]  # List of speed changes for time-stretching
+
+speed_perturb: !new:speechbrain.augment.time_domain.SpeedPerturb
+    orig_freq: !ref <sample_rate>
+    speeds: !ref <speed_changes>
+
+# Frequency drop: randomly drops a number of frequency bands to zero.
+drop_freq_low: 0  # Min frequency band dropout probability
+drop_freq_high: 1  # Max frequency band dropout probability
+drop_freq_count_low: 1  # Min number of frequency bands to drop
+drop_freq_count_high: 3  # Max number of frequency bands to drop
+drop_freq_width: 0.05  # Width of frequency bands to drop
+
+drop_freq: !new:speechbrain.augment.time_domain.DropFreq
+    drop_freq_low: !ref <drop_freq_low>
+    drop_freq_high: !ref <drop_freq_high>
+    drop_freq_count_low: !ref <drop_freq_count_low>
+    drop_freq_count_high: !ref <drop_freq_count_high>
+    drop_freq_width: !ref <drop_freq_width>
+
+# Time drop: randomly drops a number of temporal chunks.
+drop_chunk_count_low: 1  # Min number of audio chunks to drop
+drop_chunk_count_high: 5  # Max number of audio chunks to drop
+drop_chunk_length_low: 1000  # Min length of audio chunks to drop
+drop_chunk_length_high: 2000  # Max length of audio chunks to drop
+
+drop_chunk: !new:speechbrain.augment.time_domain.DropChunk
+    drop_length_low: !ref <drop_chunk_length_low>
+    drop_length_high: !ref <drop_chunk_length_high>
+    drop_count_low: !ref <drop_chunk_count_low>
+    drop_count_high: !ref <drop_chunk_count_high>
+
+# loss thresholding -- this thresholds the training loss
+threshold_byloss: True
+threshold: -30
+
+# Dataloader options
+# Set num_workers: 0 on MacOS due to behavior of the multiprocessing library
+dataloader_opts:
+  batch_size: !ref <batch_size>
+  num_workers: 3
+
+test_dataloader_opts:
+  batch_size: 1
+  num_workers: 3
+
+# Specifying the network
+
+# Encoder parameters
+channels: 1024
+block_channels: 256 #1024 #256
+
+block: !new:speechbrain.lobes.models.dual_path.SBTransformerBlock
+  num_layers: 16  #16
+  d_model: 256
+  nhead: 8  #1/8
+  d_ffn: 1024             #2048?
+  dropout: 0.1  #0.0/0.1/0.5
+  use_positional_encoding: true
+  norm_before: true
+
+dacmodel: !new:speechbrain.lobes.models.codecformer3.DACWrapper
+  input_sample_rate: 8000
+  DAC_model_path:   #if None, will download model from huggingface. Otherwise, path to checkpoint should be provided for the model to be loaded. Model has been hardcoded to download the 16khz model. please modify the code if you need another model.
+  DAC_sample_rate: 16000
+  Freeze: true
+
+sepmodel: !new:speechbrain.lobes.models.codecformer3.simpleSeparator2
+        # dacmodel: !ref <dacmodel>
+  num_spks: 2
+  channels: 1024
+  block: !ref <block>
+  block_channels: 256
+
+optimizer: !name:torch.optim.Adam
+  lr: !ref <lr>
+  weight_decay: 0
+
+#Loss parameters
+loss: !name:speechbrain.nnet.losses.get_si_snr_with_pitwrapper
+
+lr_scheduler: !new:speechbrain.nnet.schedulers.ReduceLROnPlateau
+  factor: 0.5
+  patience: 2
+  dont_halve_until_epoch: 5
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+  limit: !ref <N_epochs>
+
+modules:
+  sepmodel: !ref <sepmodel>
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+  checkpoints_dir: !ref <save_folder>
+  recoverables:
+    sepmodel: !ref <sepmodel>
+    counter: !ref <epoch_counter>
+    lr_scheduler: !ref <lr_scheduler>
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+  save_file: !ref <train_log>
