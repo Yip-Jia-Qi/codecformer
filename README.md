@@ -2,11 +2,12 @@
 
 This repository contains a number of scripts required for replicating Codecformer within the speechbrain framework. Unfortunately, they will have to be copied into the respective directories manually.
 
-train_cdf.py -> recipes/WSJ02Mix/Separation
+train_codecformer.py -> recipes/WSJ02Mix/Separation
 
-DAC_original_L4nq.yaml -> recipes/WSJ02Mix/Separation/hparams
+codecformer-dac.yaml -> recipes/WSJ02Mix/Separation/hparams
+codecformer-wavtokenizer.yaml -> recipes/WSJ02Mix/Separation/hparams
 
-codecformer3.py -> speechbrain/lobes/models
+codecformer.py -> speechbrain/lobes/models
 
 For replication efforts, please note that the activation function of the simpleseparator2 model has a big impact on performance. Ensure that the activation function of the separator matches the activation function used in the final layer of the neural audio codec's encoder.
 

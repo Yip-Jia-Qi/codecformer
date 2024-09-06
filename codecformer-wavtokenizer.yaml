@@ -11,18 +11,21 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [1234]
 
 # Data params
+# your base folder where this repo and other relevant files/repos are stored
+base_folder: /yourpath
+# experiment folder name to generate in -/separation/results
+experiment_name: codecformer/wavtokenizer2
 
 # e.g. '/yourpath/wsj0-mix/2speakers'
 # end with 2speakers for wsj0-2mix or 3speakers for wsj0-3mix
-data_folder: 
+data_folder: !ref <base_folder>/wsj0-mix/2speakers
 
 # the path for wsj0/si_tr_s/ folder -- only needed if dynamic mixing is used
 # e.g. /yourpath/wsj0-processed/si_tr_s/
 # you need to convert the original wsj0 to 8k
 # you can do this conversion with the script ../meta/preprocess_dynamic_mixing.py
-base_folder_dm: /yourpath/wsj0-processed/si_tr_s/
+base_folder_dm: !ref <base_folder>/wsj0-mix/2speakers/si_tr_s/
 
-experiment_name: codecformer/DAC_original_L4nq
 output_folder: !ref results/<experiment_name>/<seed>
 train_log: !ref <output_folder>/train_log.txt
 save_folder: !ref <output_folder>/save
@@ -30,6 +33,12 @@ train_data: !ref <save_folder>/wsj_tr.csv
 valid_data: !ref <save_folder>/wsj_cv.csv
 test_data: !ref <save_folder>/wsj_tt.csv
 skip_prep: false
+# optionally specify the number of files to use for training, validation, and testing
+# comment out to use all files
+# file_limits: 
+#   train: 100
+#   valid: 10
+#   test: 10
 
 
 # Experiment params
@@ -44,7 +53,7 @@ quantize_before: false
 quantize_after: false
 
 # Training parameters
-N_epochs: 20
+N_epochs: 3
 batch_size: 1 #3
 lr: 0.00015 #0.003
 clip_grad_norm: 5
@@ -115,7 +124,7 @@ test_dataloader_opts:
 # Specifying the network
 
 # Encoder parameters
-channels: 1024
+channels: 512
 block_channels: 256 #1024 #256
 
 block: !new:speechbrain.lobes.models.dual_path.SBTransformerBlock
@@ -127,18 +136,20 @@ block: !new:speechbrain.lobes.models.dual_path.SBTransformerBlock
   use_positional_encoding: true
   norm_before: true
 
-dacmodel: !new:speechbrain.lobes.models.codecformer3.DACWrapper
+dacmodel: !new:speechbrain.lobes.models.codecformer.WavTokenizerWrapper
   input_sample_rate: 8000
-  DAC_model_path:   #if None, will download model from huggingface. Otherwise, path to checkpoint should be provided for the model to be loaded. Model has been hardcoded to download the 16khz model. please modify the code if you need another model.
-  DAC_sample_rate: 16000
+  model_config_path: !ref <base_folder>/WavTokenizer/wavtokenizer/configs/wavtokenizer_smalldata_frame75_3s_nq1_code4096_dim512_kmeans200_attn.yaml
+  model_ckpt_path: !ref <base_folder>/WavTokenizer_small_320_24k_4096.ckpt
+  tokenizer_sample_rate: 24000
   Freeze: true
 
-sepmodel: !new:speechbrain.lobes.models.codecformer3.simpleSeparator2
+sepmodel: !new:speechbrain.lobes.models.codecformer.simpleSeparator2
         # dacmodel: !ref <dacmodel>
   num_spks: 2
-  channels: 1024
+  channels: 512 ## Note needs to be 512 for WavTokenizer and 1024 for DAC
   block: !ref <block>
   block_channels: 256
+  activation: !new:torch.nn.LeakyReLU
 
 optimizer: !name:torch.optim.Adam
   lr: !ref <lr>

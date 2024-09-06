@@ -35,7 +35,6 @@ import sys
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torchaudio
 from hyperpyyaml import load_hyperpyyaml
 from tqdm import tqdm
@@ -127,6 +126,7 @@ class Separation(sb.Brain):
             mix_w = self.hparams.dacmodel.get_quantized_features(mix_w)[0]
 
         est_mask = self.hparams.sepmodel(mix_w)
+
         mix_w = torch.stack([mix_w] * self.hparams.num_spks)
         mix_s = mix_w * est_mask
         # mix_s = est_mask
@@ -575,6 +575,17 @@ def dataio_prep(hparams):
         csv_path=hparams["test_data"],
         replacements={"data_root": hparams["data_folder"]},
     )
+
+    file_limits = hparams.get("file_limits", {"train": None, "valid": None, "test": None})
+
+    if file_limits.get("train") is not None:
+        train_data = train_data.filtered_sorted(select_n=file_limits["train"])
+
+    if file_limits.get("valid") is not None:
+        valid_data = valid_data.filtered_sorted(select_n=file_limits["valid"])
+
+    if file_limits.get("test") is not None:
+        test_data = test_data.filtered_sorted(select_n=file_limits["test"])
 
     datasets = [train_data, valid_data, test_data]
 
